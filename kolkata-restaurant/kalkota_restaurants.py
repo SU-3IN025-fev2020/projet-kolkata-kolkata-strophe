@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # Nicolas, 2020-03-20
+# Erwan NAVARRO et Thibault ROCHE
 
 from __future__ import absolute_import, print_function, unicode_literals
 from gameclass import Game,check_init_game_done
@@ -16,8 +17,10 @@ import random
 import numpy as np
 import sys
 
-
-
+import analysis
+import astar
+import pathfinding
+import strategies
     
 # ---- ---- ---- ---- ---- ----
 # ---- Main                ----
@@ -32,7 +35,7 @@ def init(_boardname=None):
     game = Game('Cartes/' + name + '.json', SpriteBuilder)
     game.O = Ontology(True, 'SpriteSheet-32x32/tiny_spritesheet_ontology.csv')
     game.populate_sprite_names(game.O)
-    game.fps = 5  # frames per second
+    game.fps = 60  # frames per second
     game.mainiteration()
     game.mask.allow_overlaping_players = True
     #player = game.player
@@ -40,17 +43,13 @@ def init(_boardname=None):
 def main():
 
     #for arg in sys.argv:
-    iterations = 20 # default
+    iterations = 5 # default
     if len(sys.argv) == 2:
         iterations = int(sys.argv[1])
     print ("Iterations: ")
     print (iterations)
 
     init()
-    
-    
-    
-
     
     #-------------------------------
     # Initialisation
@@ -77,86 +76,126 @@ def main():
         
     # on localise tous les murs
     wallStates = [w.get_rowcol() for w in game.layers['obstacle']]
-    #print ("Wall states:", wallStates)
-    
+    print ("Wall states:", wallStates)
+
     # on liste toutes les positions permises
     allowedStates = [(x,y) for x in range(nbLignes) for y in range(nbColonnes)\
                      if (x,y) not in wallStates or  goalStates] 
+
+    analyse = analysis.Analyse(len(goalStates))
     
     #-------------------------------
     # Placement aleatoire des joueurs, en évitant les obstacles
     #-------------------------------
-        
-    posPlayers = initStates
 
+    liste_gains=[0]*nbPlayers
     
-    for j in range(nbPlayers):
-        x,y = random.choice(allowedStates)
-        players[j].set_rowcol(x,y)
-        game.mainiteration()
-        posPlayers[j]=(x,y)
-
-
-        
-        
-    
-    #-------------------------------
-    # chaque joueur choisit un restaurant
-    #-------------------------------
-
-    restau=[0]*nbPlayers
-    for j in range(nbPlayers):
-        c = random.randint(0,nbRestaus-1)
-        print(c)
-        restau[j]=c
-    
-    #-------------------------------
-    # Boucle principale de déplacements 
-    #-------------------------------
-    
-        
-    # bon ici on fait juste plusieurs random walker pour exemple...
-    
+    #inscription à la stratégie d'analyse
+    analyse.subscribe(0)
+    analyse.subscribe(1)
+    analyse.subscribe(2)
+    analyse.subscribe(3)
+       
     for i in range(iterations):
-        
-        for j in range(nbPlayers): # on fait bouger chaque joueur séquentiellement
-            row,col = posPlayers[j]
+        est_fini=False
+        ite_courrante=0
 
-            x_inc,y_inc = random.choice([(0,1),(0,-1),(1,0),(-1,0)])
-            next_row = row+x_inc
-            next_col = col+y_inc
-            # and ((next_row,next_col) not in posPlayers)
-            if ((next_row,next_col) not in wallStates) and next_row>=0 and next_row<=19 and next_col>=0 and next_col<=19:
-                players[j].set_rowcol(next_row,next_col)
-                print ("pos :", j, next_row,next_col)
-                game.mainiteration()
-    
-                col=next_col
-                row=next_row
-                posPlayers[j]=(row,col)
-            
-      
+        posPlayers = initStates
+
         
+        for j in range(nbPlayers):
+            x,y = random.choice(allowedStates)
+            players[j].set_rowcol(x,y)
+            game.mainiteration()
+            posPlayers[j]=(x,y)
+
+
             
-            # si on est à l'emplacement d'un restaurant, on s'arrête
-            if (row,col) == restau[j]:
-                #o = players[j].ramasse(game.layers)
-                game.mainiteration()
-                print ("Le joueur ", j, " est à son restaurant.")
-               # goalStates.remove((row,col)) # on enlève ce goalState de la liste
-                
-                
-                break
+
+        #-------------------------------
+        # chaque joueur choisit un restaurant
+        #-------------------------------
+
+        restaurant = [0]*nbPlayers
+        for j in range(nbPlayers):
+            if analyse.is_subscribed(j):
+                c = analyse.best_strat(j)
+                print("Strat_Analyse pour joueur",j,c)
+            else :  
+                c = strategies.random_strategy(nbRestaus)              
+                print(c)
+               
+            restaurant[j]=c
+
+        chemins=[0]*nbPlayers
+
+        #-------------------------------
+        # Boucles de déplacements 
+        #-------------------------------
+
+        for i in range(nbPlayers):
+            chemins[i] = astar.astar(posPlayers[i],goalStates[restaurant[i]],wallStates)
+
+        for i in range(iterations):
+            est_fini = False
+            ite_courrante = 0
+
+        while(not(est_fini)):
+            cpt_fin = 0
+        
+            for j in range(nbPlayers): # on fait bouger chaque joueur séquentiellement
+                if len(chemins[j]) > ite_courrante :
+                    (prochaine_ligne,prochaine_colonne) = chemins[j][ite_courrante]
+                    players[j].set_rowcol(prochaine_ligne,prochaine_colonne)
+                    print ("pos :", j, prochaine_ligne,prochaine_colonne)
+                    game.mainiteration()
+                    posPlayers[j] = (prochaine_ligne,prochaine_colonne)
+                else :
+                    print(("Le joueur ", j, " a fini."))
+                    cpt_fin += 1
+                    game.mainiteration()
+                    
+            ite_courrante += 1
             
+            if cpt_fin == 10 :
+                est_fini = True
+                print('Fin du tour : distribution des gains.')
+                
+                for g in range(len(goalStates)):
+                    gagnants = []
+                    
+                    for h in range(nbPlayers):
+                        if posPlayers[h] == goalStates[g] :
+                            gagnants.append(h)
+                            
+                    if len(gagnants) != 0 :
+                        gagnant=random.choice(gagnants)
+                        liste_gains[gagnant] += 1
+                        
+                    tab_fin = [0] * len(goalStates)
+                    
+                for k in range(len(tab_fin)):
+                
+                    for l in range(nbPlayers):
+                        if posPlayers[l] == goalStates[k] :
+                            tab_fin[k] += 1
+                            
+                for m in range(nbPlayers):
+                    if analyse.is_subscribed(m) :
+                        cpt_fin =- 1
+                        
+                        for n in range(len(goalStates)) :
+                            if posPlayers[m] == goalStates[n]:
+                                cpt_fin = n
+                                
+                        analyse.update_results(m, n, tab_fin)
+
+                print('Gains Actuels:')
+                print(liste_gains)
     
     pygame.quit()
-    
-        
-    
-   
+      
 
 if __name__ == '__main__':
     main()
-    
-
 
