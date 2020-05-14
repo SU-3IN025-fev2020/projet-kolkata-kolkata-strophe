@@ -8,7 +8,7 @@ def stubborn_strategy(index,nb_restaurants):
     return index % nb_restaurants
 
 def random_strategy(nb_restaurants):
-    """Stratégie consistant en des deplacements aléatoires."""
+    """Stratégie consistant en des deplacements vers un restaurant aléatoire."""
     return random.randint(0,nb_restaurants - 1)
     
 def nearest_strategy(liste_buts,coord_de_depart):

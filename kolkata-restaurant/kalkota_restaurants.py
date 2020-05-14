@@ -120,7 +120,7 @@ def main():
         for j in range(nbPlayers):
             if analyse.is_subscribed(j):
                 c = analyse.best_strat(j)
-                print("Strat_Analyse pour joueur",j,c)
+                print("Analyse pour le joueur",j,c)
             else :  
                 c = strategies.random_strategy(nbRestaus)              
                 print(c)
