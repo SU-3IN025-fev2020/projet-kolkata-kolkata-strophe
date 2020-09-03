@@ -3,7 +3,7 @@
 
 ## Introduction
 
-Ce projet a été réalisé par Erwan Navarro et Thibault Roche. Voici un rappel de l'énoncé:
+Ce projet a été réalisé par Anon1 et Anon2. Voici un rappel de l'énoncé:
 
 
 > Plusieurs joueurs (_n_), qui habitent dans le même quartier, souhaitent se rendre dans un des  _k_  restaurants du quartier. Une fois que leur choix est effectué, les joueurs se rendent dans le restaurant choisi. La règle est alors la suivante :
